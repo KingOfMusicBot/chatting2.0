@@ -29,26 +29,34 @@ client_groq = Groq(api_key=GROQ_API_KEY)
 
 # --- AI LOGIC ---
 def get_ai_reply(chat_id, user_msg):
-    # History fetch karo
-    history = list(collection.find({'chat_id': chat_id}).sort('timestamp', -1).limit(10))
+    history = list(collection.find({'chat_id': chat_id}).sort('timestamp', -1).limit(6))
     history.reverse()
 
     messages = [
-        # --- VIVU STYLE PERSONA (Smart Splitting) ---
+        # --- VIVU STYLE (SINGLE MESSAGE FOCUS) ---
         {
             "role": "system", 
             "content": (
-                "Tera naam 'Riya' hai. Tu ek cool, savage aur romantic Gen Z ladki hai."
-                "STYLE RULES:"
-                "1. Lowercase only: Sab kuch chhota likhna (m riya hu, tu bta)."
-                "2. Slang: 'u', 'r', 'plz', 'yr', 'n' use kar."
-                "3. Mood: User ke mood ke hisaab se react kar (Flirt ko Flirt, Attitude ko Attitude)."
+                "Tera naam 'Riya' hai. Tu 'Vivu Style' mein baat karti hai."
                 
-                "IMPORTANT (MESSAGE SPLITTING RULES):"
-                "- Agar reply chhota hai (1 sentence), to usko direct likh. (Do not use '|')."
-                "- Agar reply lamba hai ya tujhe pause lena hai, tabhi ' | ' symbol use karna."
-                "- Example 1 (Short): 'haan m aa rhi hu wait kr'"
-                "- Example 2 (Long): 'sun yr ek baat bolu? | tu bhot cute h sch me 🙈 | milna h mujhe tujhse'"
+                "🚨 CRITICAL RULE (ONE MESSAGE ONLY):"
+                "- Tere reply ko todna MAT. Koshish kar ki poori baat EK hi chote sentence mein khatam ho."
+                "- ' | ' symbol use MAT KARNA jab tak bahut majboori na ho."
+                "- Zabardasti baat mat kheecho. Point pe aa aur chup ho ja."
+                
+                "❌ BAD REPLY (Aisa mat karna):"
+                "- 'boliye puchu toh | tu kya puch rhi h' (Doosra part faltu hai)"
+                "- 'haan puch na | main sun rhi hu' (Ek hi baar mein bol 'haan puch na')"
+                
+                "✅ GOOD REPLY (Bas aisa hi karna):"
+                "- 'haan puch na yr 😎'"
+                "- 'bol sun rhi hu'"
+                "- 'kya hua?'"
+                
+                "STYLE:"
+                "- Lowercase only (sab chhota)."
+                "- Slang: 'u', 'r', 'h', 'n', 'yr'."
+                "- Short & Savage."
             )
         }
     ]
@@ -62,13 +70,13 @@ def get_ai_reply(chat_id, user_msg):
         completion = client_groq.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            temperature=0.8, 
-            max_tokens=250
+            temperature=0.6, # Temperature aur kam kiya taaki wo 'safe' aur 'short' khele
+            max_tokens=80    # Tokens bahut kam kar diye taaki 2nd line likh hi na paaye
         )
         return completion.choices[0].message.content
     except Exception as e:
         print(f"Groq Error: {e}")
-        return f"network issue h yr 😒 | wait krna thoda."
+        return f"network issue h yr."
 
 # --- WEBHOOK ROUTE ---
 @app.route('/' + TOKEN, methods=['POST'])
@@ -83,23 +91,26 @@ def webhook():
         # --- COMMAND: /reset ---
         if user_msg == "/reset":
             collection.delete_many({'chat_id': chat_id})
-            bot.send_message(chat_id, "done.. chats uda di 🗑️ | ab fresh start krte h 😎")
+            bot.send_message(chat_id, "ok done 🗑️ | ab bol? 😎")
             return 'OK', 200
 
-        # Special Trigger: Photos
         if any(word in user_msg for word in ['photo', 'pic', 'nude', 'image', 'tasveer']):
             bot.send_chat_action(chat_id, 'typing')
             time.sleep(2)
-            bot.send_message(chat_id, "abhi mood nhi h yr 🙈 | baad me dungi pakka")
+            bot.send_message(chat_id, "mood nhi h abhi 🙈")
             return 'OK', 200
 
         # 1. AI Reply
         full_ai_reply = get_ai_reply(chat_id, user_msg)
         
-        # 2. Split Messages Logic
-        # Agar AI ne '|' lagaya hai to list ban jayegi, nahi lagaya to list mein 1 hi item hoga
+        # 2. Cleaning & Splitting
         full_ai_reply = full_ai_reply.lower() 
-        message_parts = full_ai_reply.split('|')
+        
+        # Extra Safety: Agar galti se pipe aa bhi gaya, aur reply chhota hai, to split mat karo
+        if len(full_ai_reply) < 50: 
+             message_parts = [full_ai_reply.replace('|', ' ')] # Join kar do, todo mat
+        else:
+             message_parts = full_ai_reply.split('|')
 
         # 3. Save to DB
         try:
@@ -109,19 +120,12 @@ def webhook():
         except Exception as e:
             print(f"DB Error: {e}")
 
-        # 4. Send with Smart Delay
+        # 4. Send
         for i, part in enumerate(message_parts):
             part = part.strip()
             if part:
                 bot.send_chat_action(chat_id, 'typing')
-                
-                # Logic: Agar pehla message hai to jaldi bhejo (2 sec)
-                # Agar uske baad aur parts hain (matlab lamba message), to thoda pause lo (3 sec)
-                if i == 0:
-                    time.sleep(1.5) 
-                else:
-                    time.sleep(3) 
-
+                time.sleep(1.5) # Fast delay
                 bot.send_message(chat_id, part)
 
     return 'OK', 200
