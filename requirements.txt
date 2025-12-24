@@ -1,0 +1,6 @@
+Flask
+gunicorn
+pyTelegramBotAPI
+pymongo
+dnspython
+groq
