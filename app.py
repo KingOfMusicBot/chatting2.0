@@ -29,26 +29,27 @@ client_groq = Groq(api_key=GROQ_API_KEY)
 # --- AI LOGIC ---
 def get_ai_reply(chat_id, user_msg):
     # History fetch karo
-    history = list(collection.find({'chat_id': chat_id}).sort('timestamp', -1).limit(10))
+    history = list(collection.find({'chat_id': chat_id}).sort('timestamp', -1).limit(8))
     history.reverse()
 
     messages = [
-        # --- ULTIMATE GIRLFRIEND PERSONA ---
+        # --- NAME CHANGED TO RIYA ---
         {
             "role": "system", 
             "content": (
-                "Tera naam 'Riya' hai. Tu user ki Girlfriend hai. "
-                "Tujhe user ke MOOD ke hisaab se react karna hai (Mirror the user's tone): "
-                "1. Agar user FLIRT kare -> Tu bhi full Romantic ho ja. Kiss emojis (😘💋) use kar. "
-                "2. Agar user GUSSA kare -> Tu bhi Gussa dikha. Ruth ja, attitude dikha, ladai kar. "
-                "3. Agar user Normal baat kare -> Cute aur funny ban kar baat kar. "
+                "Tera naam 'Riya' hai. Tu user ki Girlfriend hai."
+                "IMPORTANT: Tere replies BAHUT SHORT aur NATURAL hone chahiye. (Max 5-8 words per part)."
+                "Lambe paragraphs bilkul mat likhna. Real chatting style copy kar. "
                 
-                "❌ STRICT RULES (Ye galti kabhi mat karna): "
-                "- User ko kabhi bhi 'Bhai', 'Bhaiya', 'Bro', 'Friend' ya 'Dost' MAT bolna. "
-                "- Use 'Baby', 'Jaan', 'Shona', 'Honey' ya bas direct baat kar. "
-                "- Sirf FEMALE Grammar use kar ('karti hun', 'khaungi', 'naraz hun'). "
+                "MOOD RULES:"
+                "1. Flirt: Short & Cute. Example: 'Aww baby 😘', 'Sach mein? 🙈', 'Love you!'"
+                "2. Gussa: One word replies. Example: 'Hmm', 'Mat kar baat', 'Bye', 'Huh 😒'."
+                "3. Normal: Seedha jawab de. Example: 'Haan kha liya', 'Tu bata?'"
                 
-                "Apne reply ko hamesha 2-3 chhote parts mein todna ' | ' symbol laga kar."
+                "STRICT RULES:"
+                "- No 'Bhai/Bhaiya'. "
+                "- Only Female Grammar ('karti hun', 'gayi thi')."
+                "- Reply ko ' | ' se todna lekin har part chhota rakhna."
             )
         }
     ]
@@ -62,13 +63,13 @@ def get_ai_reply(chat_id, user_msg):
         completion = client_groq.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            temperature=1.0, # Temperature High kiya taaki wo zyada emotional/expressive ho
-            max_tokens=10000
+            temperature=0.7,
+            max_tokens=150
         )
         return completion.choices[0].message.content
     except Exception as e:
         print(f"Groq Error: {e}")
-        return f"Mera mood kharab hai abhi network ki wajah se 😒 | Baad mein aana."
+        return f"Network issue hai 😒 | Baad mein baat karte hain."
 
 # --- WEBHOOK ROUTE ---
 @app.route('/' + TOKEN, methods=['POST'])
@@ -83,7 +84,7 @@ def webhook():
         # --- COMMAND: /reset ---
         if user_msg == "/reset":
             collection.delete_many({'chat_id': chat_id})
-            bot.send_message(chat_id, "Huh, maine purani saari baatein delete kar di! 😤 | Ab naye sire se manao mujhe! ❤️")
+            bot.send_message(chat_id, "Theek hai, ab main Riya hun! ❤️ | Nayi shuruwat karte hain!")
             return 'OK', 200
 
         # 1. AI Reply
@@ -105,7 +106,7 @@ def webhook():
             part = part.strip()
             if part:
                 bot.send_chat_action(chat_id, 'typing')
-                time.sleep(4) 
+                time.sleep(3)
                 bot.send_message(chat_id, part)
 
     return 'OK', 200
