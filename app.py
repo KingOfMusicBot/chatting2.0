@@ -1,7 +1,6 @@
 import os
 import time
 import datetime
-import random
 from flask import Flask, request
 import telebot
 from pymongo import MongoClient
@@ -33,30 +32,27 @@ def get_ai_reply(chat_id, user_msg):
     history.reverse()
 
     messages = [
-        # --- VIVU STYLE (SINGLE MESSAGE FOCUS) ---
+        # --- VIVU STYLE (ONE SHOT) ---
         {
             "role": "system", 
             "content": (
-                "Tera naam 'Riya' hai. Tu 'Vivu Style' mein baat karti hai."
+                "Tera naam 'Riya' hai. Tu 'Vivu Bot' hai."
+                "Tujhe sirf EK line mein reply dena hai. (Max 5-6 words)."
                 
-                "🚨 CRITICAL RULE (ONE MESSAGE ONLY):"
-                "- Tere reply ko todna MAT. Koshish kar ki poori baat EK hi chote sentence mein khatam ho."
-                "- ' | ' symbol use MAT KARNA jab tak bahut majboori na ho."
-                "- Zabardasti baat mat kheecho. Point pe aa aur chup ho ja."
+                "❌ STRICTLY FORBIDDEN:"
+                "- Kabhi bhi 2 sentences mat likhna."
+                "- User ki baat repeat mat karna (Jaise: 'kya puch rhi h?')."
+                "- Pipe symbol '|' use mat karna."
                 
-                "❌ BAD REPLY (Aisa mat karna):"
-                "- 'boliye puchu toh | tu kya puch rhi h' (Doosra part faltu hai)"
-                "- 'haan puch na | main sun rhi hu' (Ek hi baar mein bol 'haan puch na')"
-                
-                "✅ GOOD REPLY (Bas aisa hi karna):"
-                "- 'haan puch na yr 😎'"
-                "- 'bol sun rhi hu'"
-                "- 'kya hua?'"
-                
-                "STYLE:"
+                "✅ TERA STYLE:"
                 "- Lowercase only (sab chhota)."
-                "- Slang: 'u', 'r', 'h', 'n', 'yr'."
-                "- Short & Savage."
+                "- Slang: 'h', 'n', 'yr', 'u', 'r'."
+                "- Rude/Savage/Cool attitude."
+                
+                "Examples:"
+                "User: kaisa h? -> Bot: mast hu tu bta"
+                "User: pic de -> Bot: mood nhi h"
+                "User: love u -> Bot: chal jhoothe 😂"
             )
         }
     ]
@@ -70,13 +66,13 @@ def get_ai_reply(chat_id, user_msg):
         completion = client_groq.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            temperature=0.6, # Temperature aur kam kiya taaki wo 'safe' aur 'short' khele
-            max_tokens=80    # Tokens bahut kam kar diye taaki 2nd line likh hi na paaye
+            temperature=0.6, 
+            max_tokens=60  # Bahut kam kar diya taaki 2nd line likh hi na paaye
         )
         return completion.choices[0].message.content
     except Exception as e:
         print(f"Groq Error: {e}")
-        return f"network issue h yr."
+        return "net issue h."
 
 # --- WEBHOOK ROUTE ---
 @app.route('/' + TOKEN, methods=['POST'])
@@ -91,42 +87,36 @@ def webhook():
         # --- COMMAND: /reset ---
         if user_msg == "/reset":
             collection.delete_many({'chat_id': chat_id})
-            bot.send_message(chat_id, "ok done 🗑️ | ab bol? 😎")
+            bot.send_message(chat_id, "ok clear 🗑️")
             return 'OK', 200
 
+        # Special Trigger
         if any(word in user_msg for word in ['photo', 'pic', 'nude', 'image', 'tasveer']):
             bot.send_chat_action(chat_id, 'typing')
-            time.sleep(2)
-            bot.send_message(chat_id, "mood nhi h abhi 🙈")
+            time.sleep(1.5)
+            bot.send_message(chat_id, "mood nhi h")
             return 'OK', 200
 
         # 1. AI Reply
-        full_ai_reply = get_ai_reply(chat_id, user_msg)
+        ai_reply = get_ai_reply(chat_id, user_msg)
         
-        # 2. Cleaning & Splitting
-        full_ai_reply = full_ai_reply.lower() 
-        
-        # Extra Safety: Agar galti se pipe aa bhi gaya, aur reply chhota hai, to split mat karo
-        if len(full_ai_reply) < 50: 
-             message_parts = [full_ai_reply.replace('|', ' ')] # Join kar do, todo mat
-        else:
-             message_parts = full_ai_reply.split('|')
+        # 2. Cleaning (Splitting REMOVED)
+        # Ab hum split kar hi nahi rahe. Jo aaya wahi jayega.
+        final_reply = ai_reply.lower().replace('|', '').strip()
 
         # 3. Save to DB
         try:
             timestamp = datetime.datetime.utcnow()
             collection.insert_one({'chat_id': chat_id, 'role': 'user', 'content': user_msg, 'timestamp': timestamp})
-            collection.insert_one({'chat_id': chat_id, 'role': 'assistant', 'content': full_ai_reply.replace('|', ' '), 'timestamp': timestamp})
+            collection.insert_one({'chat_id': chat_id, 'role': 'assistant', 'content': final_reply, 'timestamp': timestamp})
         except Exception as e:
             print(f"DB Error: {e}")
 
-        # 4. Send
-        for i, part in enumerate(message_parts):
-            part = part.strip()
-            if part:
-                bot.send_chat_action(chat_id, 'typing')
-                time.sleep(1.5) # Fast delay
-                bot.send_message(chat_id, part)
+        # 4. Send (Single Message Only)
+        if final_reply:
+            bot.send_chat_action(chat_id, 'typing')
+            time.sleep(1.5) 
+            bot.send_message(chat_id, final_reply)
 
     return 'OK', 200
 
