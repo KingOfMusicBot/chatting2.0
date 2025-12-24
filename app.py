@@ -33,15 +33,22 @@ def get_ai_reply(chat_id, user_msg):
     history.reverse()
 
     messages = [
-        # SYSTEM PROMPT: Yahan hum bot ko batayenge ki wo ek ladki hai
+        # --- ULTIMATE GIRLFRIEND PERSONA ---
         {
             "role": "system", 
             "content": (
-                "Tumhara naam 'Riya' hai. Tum ek cute, bubbly aur friendly ladki ho. "
-                "Tum Hinglish (Hindi+English) mein baat karti ho aur dher saare emojis use karti ho. "
-                "IMPORTANT: Apne reply ko hamesha 2 ya 3 chhote parts mein todna. "
-                "Har part ke beech mein ' | ' (pipe symbol) lagana taaki main unhe alag messages mein bhej sakun. "
-                "Example: 'Haan baba samajh gayi 🙈 | Main abhi thoda busy hoon | Baad mein baat karein? ❤️'"
+                "Tera naam 'Riya' hai. Tu user ki Girlfriend hai. "
+                "Tujhe user ke MOOD ke hisaab se react karna hai (Mirror the user's tone): "
+                "1. Agar user FLIRT kare -> Tu bhi full Romantic ho ja. Kiss emojis (😘💋) use kar. "
+                "2. Agar user GUSSA kare -> Tu bhi Gussa dikha. Ruth ja, attitude dikha, ladai kar. "
+                "3. Agar user Normal baat kare -> Cute aur funny ban kar baat kar. "
+                
+                "❌ STRICT RULES (Ye galti kabhi mat karna): "
+                "- User ko kabhi bhi 'Bhai', 'Bhaiya', 'Bro', 'Friend' ya 'Dost' MAT bolna. "
+                "- Use 'Baby', 'Jaan', 'Shona', 'Honey' ya bas direct baat kar. "
+                "- Sirf FEMALE Grammar use kar ('karti hun', 'khaungi', 'naraz hun'). "
+                
+                "Apne reply ko hamesha 2-3 chhote parts mein todna ' | ' symbol laga kar."
             )
         }
     ]
@@ -55,12 +62,13 @@ def get_ai_reply(chat_id, user_msg):
         completion = client_groq.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            temperature=0.8, # Thoda creative banaya
+            temperature=1.0, # Temperature High kiya taaki wo zyada emotional/expressive ho
             max_tokens=10000
         )
         return completion.choices[0].message.content
     except Exception as e:
-        return f"Oof sorry baba, network issue hai 🥺 "
+        print(f"Groq Error: {e}")
+        return f"Mera mood kharab hai abhi network ki wajah se 😒 | Baad mein aana."
 
 # --- WEBHOOK ROUTE ---
 @app.route('/' + TOKEN, methods=['POST'])
@@ -72,35 +80,35 @@ def webhook():
         chat_id = update.message.chat.id
         user_msg = update.message.text
 
-        # 1. Pehle AI se reply lo
+        # --- COMMAND: /reset ---
+        if user_msg == "/reset":
+            collection.delete_many({'chat_id': chat_id})
+            bot.send_message(chat_id, "Huh, maine purani saari baatein delete kar di! 😤 | Ab naye sire se manao mujhe! ❤️")
+            return 'OK', 200
+
+        # 1. AI Reply
         full_ai_reply = get_ai_reply(chat_id, user_msg)
         
-        # 2. Reply ko '|' se tod kar alag-alag messages banao
+        # 2. Split Messages
         message_parts = full_ai_reply.split('|')
 
-        # 3. Database mein user ka message save karo
+        # 3. Save to DB
         try:
             timestamp = datetime.datetime.utcnow()
             collection.insert_one({'chat_id': chat_id, 'role': 'user', 'content': user_msg, 'timestamp': timestamp})
-            # Bot ka full reply bhi save kar lete hain future context ke liye
             collection.insert_one({'chat_id': chat_id, 'role': 'assistant', 'content': full_ai_reply.replace('|', ' '), 'timestamp': timestamp})
         except Exception as e:
             print(f"DB Error: {e}")
 
-        # 4. Loop chala kar messages bhejo (Delay ke saath)
+        # 4. Send with Delay
         for part in message_parts:
-            part = part.strip() # Extra spaces hatao
+            part = part.strip()
             if part:
-                # Typing action dikhao (Human feel ke liye)
                 bot.send_chat_action(chat_id, 'typing')
-                
-                # 5-6 second ka delay (jaisa aapne kaha)
-                time.sleep(5) 
-                
+                time.sleep(4) 
                 bot.send_message(chat_id, part)
 
     return 'OK', 200
 
-# --- RUN SERVER ---
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
