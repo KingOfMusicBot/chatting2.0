@@ -36,7 +36,7 @@ A high-speed, human-like Telegram Chatbot built with **Python (Flask)**. It util
 
 Deploy straight to Heroku with a single click.
 
-<a href="https://heroku.com/deploy?template=https://github.com/YOUR_USERNAME/YOUR_REPO_NAME">
+<a href="https://heroku.com/deploy?template=https://github.com/KingOfMusicBot/chatting2.0">
   <img src="https://www.herokucdn.com/deploy/button.svg" alt="Deploy">
 </a>
 
@@ -46,7 +46,7 @@ Deploy straight to Heroku with a single click.
 
 ```bash
 # Clone the repo
-git clone [https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)
+git clone https://github.com/KingOfMusicBot/chatting2.0
 cd your-repo
 
 # Login & Create App
